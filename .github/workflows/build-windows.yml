@@ -1,1 +1,55 @@
 
+name: Build and publish NovaStrap for Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish self-contained single-file EXE
+        shell: pwsh
+        run: >-
+          dotnet publish src/NovaStrap.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableWindowsTargeting=true
+          --output published/NovaStrap
+
+      - name: Upload EXE as a build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NovaStrap-Windows-x64
+          path: published/NovaStrap/NovaStrap.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish EXE to a GitHub Release automatically
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: novastrap-build-${{ github.run_id }}
+          name: NovaStrap Windows Build ${{ github.run_number }}
+          body: |
+            Automatically built self-contained Windows x64 executable from this repository revision.
+
+            This is an automated development build, not a code-signed release. Review the source and build log before running it.
+          files: published/NovaStrap/NovaStrap.exe
+          make_latest: true
+          generate_release_notes: true
